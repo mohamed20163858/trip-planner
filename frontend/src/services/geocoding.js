@@ -1,3 +1,4 @@
+// services/geocoding.js
 export const geocodeAddress = async (address) => {
   try {
     console.log("Geocoding - Fetching coordinates for address:", address);
@@ -21,6 +22,6 @@ export const geocodeAddress = async (address) => {
     throw new Error("Location not found");
   } catch (error) {
     console.error("Geocoding error:", error);
-    return null;
+    throw error;
   }
 };

@@ -1,4 +1,10 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, {
+  useEffect,
+  useState,
+  useCallback,
+  useMemo,
+  useRef,
+} from "react";
 import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
@@ -36,6 +42,7 @@ const RouteLayer = React.memo(({ markers, onRouteDrawn }) => {
 
   useEffect(() => {
     console.log("RouteLayer - Effect triggered with markers:", markers);
+    let polyline = null;
 
     if (markers.length >= 2) {
       console.log("RouteLayer - Drawing route for markers");
@@ -45,10 +52,7 @@ const RouteLayer = React.memo(({ markers, onRouteDrawn }) => {
       const bounds = L.latLngBounds(waypoints);
       map.fitBounds(bounds, { padding: [50, 50] });
 
-      const polyline = L.polyline(waypoints, {
-        color: "blue",
-        weight: 3,
-      }).addTo(map);
+      polyline = L.polyline(waypoints, { color: "blue", weight: 3 }).addTo(map);
 
       let totalDistance = 0;
       for (let i = 0; i < markers.length - 1; i++) {
@@ -61,13 +65,16 @@ const RouteLayer = React.memo(({ markers, onRouteDrawn }) => {
       }
 
       console.log("RouteLayer - Calculated total distance:", totalDistance);
+      // Only call onRouteDrawn if the distance has changed
       onRouteDrawn(totalDistance);
+    }
 
-      return () => {
+    return () => {
+      if (polyline) {
         console.log("RouteLayer - Cleaning up polyline");
         map.removeLayer(polyline);
-      };
-    }
+      }
+    };
   }, [markers, map, onRouteDrawn]);
 
   return null;
@@ -75,15 +82,18 @@ const RouteLayer = React.memo(({ markers, onRouteDrawn }) => {
 
 const MapComponent = React.memo(
   ({ currentLocation, pickupLocation, dropoffLocation, onRouteCalculated }) => {
-    console.log("MapComponent - Rendering with locations:", {
-      currentLocation,
-      pickupLocation,
-      dropoffLocation,
-    });
-
     const [markers, setMarkers] = useState([]);
     const [isLoading, setIsLoading] = useState(false);
-    const defaultCenter = [39.8283, -98.5795];
+    const defaultCenter = useMemo(() => [39.8283, -98.5795], []);
+    const mountedRef = useRef(true);
+
+    const locations = useMemo(() => {
+      return [
+        { address: currentLocation, label: "Current Location" },
+        { address: pickupLocation, label: "Pickup Location" },
+        { address: dropoffLocation, label: "Dropoff Location" },
+      ].filter((loc) => loc.address);
+    }, [currentLocation, pickupLocation, dropoffLocation]);
 
     const handleRouteDrawn = useCallback(
       (distance) => {
@@ -97,78 +107,63 @@ const MapComponent = React.memo(
     );
 
     useEffect(() => {
+      return () => {
+        mountedRef.current = false;
+      };
+    }, []);
+
+    useEffect(() => {
+      if (locations.length === 0) return;
+
       console.log("MapComponent - Effect triggered for locations");
-      let isMounted = true;
+      setIsLoading(true);
+
+      const geocodeCache = new Map();
 
       const fetchCoordinates = async () => {
-        if (!currentLocation && !pickupLocation && !dropoffLocation) {
-          console.log("MapComponent - No locations provided");
-          return;
-        }
-
-        setIsLoading(true);
-        console.log("MapComponent - Starting to fetch coordinates");
-
         try {
-          const locations = [
-            { address: currentLocation, label: "Current Location" },
-            { address: pickupLocation, label: "Pickup Location" },
-            { address: dropoffLocation, label: "Dropoff Location" },
-          ].filter((loc) => loc.address);
-
-          console.log(
-            "MapComponent - Fetching coordinates for locations:",
-            locations
-          );
-
           const coordinates = [];
 
           for (const location of locations) {
-            if (!isMounted) {
-              console.log("MapComponent - Component unmounted during fetch");
-              break;
+            if (!mountedRef.current) return;
+
+            if (geocodeCache.has(location.address)) {
+              coordinates.push({
+                ...geocodeCache.get(location.address),
+                label: location.label,
+                address: location.address,
+              });
+              continue;
             }
 
-            if (location.address) {
-              console.log(
-                "MapComponent - Geocoding address:",
-                location.address
-              );
-              const coords = await geocodeAddress(location.address);
-              console.log("MapComponent - Received coordinates:", coords);
+            console.log("MapComponent - Geocoding address:", location.address);
+            const coords = await geocodeAddress(location.address);
 
-              if (coords && isMounted) {
-                coordinates.push({
-                  ...coords,
-                  label: location.label,
-                  address: location.address,
-                });
-              }
+            if (coords && mountedRef.current) {
+              geocodeCache.set(location.address, coords);
+              coordinates.push({
+                ...coords,
+                label: location.label,
+                address: location.address,
+              });
             }
           }
 
-          if (isMounted) {
+          if (mountedRef.current) {
             console.log("MapComponent - Setting markers:", coordinates);
             setMarkers(coordinates);
             setIsLoading(false);
           }
         } catch (error) {
           console.error("MapComponent - Error fetching coordinates:", error);
-          if (isMounted) {
+          if (mountedRef.current) {
             setIsLoading(false);
           }
         }
       };
 
       fetchCoordinates();
-
-      return () => {
-        console.log("MapComponent - Cleanup effect");
-        isMounted = false;
-      };
-    }, [currentLocation, pickupLocation, dropoffLocation]);
-
-    console.log("MapComponent - Current state:", { markers, isLoading });
+    }, [locations]);
 
     return (
       <div
@@ -205,18 +200,15 @@ const MapComponent = React.memo(
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           />
-          {markers.map((marker, index) => {
-            console.log("MapComponent - Rendering marker:", marker);
-            return (
-              <Marker key={index} position={[marker.lat, marker.lng]}>
-                <Popup>
-                  <strong>{marker.label}</strong>
-                  <br />
-                  {marker.address}
-                </Popup>
-              </Marker>
-            );
-          })}
+          {markers.map((marker, index) => (
+            <Marker key={index} position={[marker.lat, marker.lng]}>
+              <Popup>
+                <strong>{marker.label}</strong>
+                <br />
+                {marker.address}
+              </Popup>
+            </Marker>
+          ))}
           <RouteLayer markers={markers} onRouteDrawn={handleRouteDrawn} />
         </MapContainer>
       </div>
