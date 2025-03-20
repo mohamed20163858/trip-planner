@@ -31,10 +31,14 @@ function MapUpdater({ coordinates }) {
 
 const MapComponent = ({ currentLocation, pickupLocation, dropoffLocation }) => {
   const [markers, setMarkers] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
+
   const defaultCenter = [39.8283, -98.5795];
 
   useEffect(() => {
     const fetchCoordinates = async () => {
+      setIsLoading(true);
+
       const locations = [
         { address: currentLocation, label: "Current Location" },
         { address: pickupLocation, label: "Pickup Location" },
@@ -57,6 +61,7 @@ const MapComponent = ({ currentLocation, pickupLocation, dropoffLocation }) => {
       }
 
       setMarkers(coordinates);
+      setIsLoading(false);
     };
 
     if (currentLocation || pickupLocation || dropoffLocation) {
@@ -65,7 +70,31 @@ const MapComponent = ({ currentLocation, pickupLocation, dropoffLocation }) => {
   }, [currentLocation, pickupLocation, dropoffLocation]);
 
   return (
-    <div style={{ height: "400px", width: "100%", marginTop: "20px" }}>
+    <div
+      style={{
+        height: "400px",
+        width: "100%",
+        marginTop: "20px",
+        position: "relative",
+      }}
+    >
+      {isLoading && (
+        <div
+          style={{
+            position: "absolute",
+            top: "50%",
+            left: "50%",
+            transform: "translate(-50%, -50%)",
+            zIndex: 1000,
+            backgroundColor: "white",
+            padding: "10px",
+            borderRadius: "5px",
+            boxShadow: "0 0 10px rgba(0,0,0,0.2)",
+          }}
+        >
+          Loading locations...
+        </div>
+      )}
       <MapContainer
         center={defaultCenter}
         zoom={4}
