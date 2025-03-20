@@ -1,12 +1,17 @@
 import React, { useState } from "react";
 import TripForm from "./components/TripForm";
 import MapComponent from "./components/MapComponent";
+import ELDLogSheet from "./components/ELDLogSheet";
+import { calculateELDLogs } from "./services/eldCalculations";
 
 function App() {
   const [tripData, setTripData] = useState(null);
+  const [eldLogs, setEldLogs] = useState(null);
 
   const handleTripSubmit = (data) => {
     setTripData(data);
+    const logs = calculateELDLogs(data);
+    setEldLogs(logs);
   };
 
   return (
@@ -18,6 +23,12 @@ function App() {
         pickupLocation={tripData?.pickup_location}
         dropoffLocation={tripData?.dropoff_location}
       />
+      {eldLogs && (
+        <ELDLogSheet
+          date={new Date().toISOString().split("T")[0]}
+          logs={eldLogs}
+        />
+      )}
     </div>
   );
 }
