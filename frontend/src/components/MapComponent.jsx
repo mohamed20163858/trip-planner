@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from "react";
 import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
-import "leaflet/dist/leaflet.css";
 import L from "leaflet";
+import "leaflet/dist/leaflet.css";
+import "leaflet-routing-machine/dist/leaflet-routing-machine.css";
+import "leaflet-routing-machine";
 import { geocodeAddress } from "../services/geocoding";
 
-// Fix for default marker icon
+// Fix for default marker icon (keep existing code)
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
   iconRetinaUrl:
@@ -15,16 +17,32 @@ L.Icon.Default.mergeOptions({
     "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png",
 });
 
-// Component to update map view
-function MapUpdater({ coordinates }) {
+// Routing Machine Component
+function RoutingMachine({ coordinates }) {
   const map = useMap();
 
   useEffect(() => {
-    if (coordinates.length > 0) {
-      const bounds = L.latLngBounds(coordinates);
-      map.fitBounds(bounds, { padding: [50, 50] });
-    }
-  }, [coordinates, map]);
+    if (!map || coordinates.length < 2) return;
+
+    const waypoints = coordinates.map((coord) =>
+      L.latLng(coord.lat, coord.lng)
+    );
+
+    const routingControl = L.Routing.control({
+      waypoints: waypoints,
+      routeWhileDragging: false,
+      showAlternatives: true,
+      fitSelectedRoutes: true,
+      lineOptions: {
+        styles: [{ color: "#6FA1EC", weight: 4 }],
+      },
+      createMarker: function () {
+        return null;
+      }, // Don't create default markers
+    }).addTo(map);
+
+    return () => map.removeControl(routingControl);
+  }, [map, coordinates]);
 
   return null;
 }
@@ -32,18 +50,16 @@ function MapUpdater({ coordinates }) {
 const MapComponent = ({ currentLocation, pickupLocation, dropoffLocation }) => {
   const [markers, setMarkers] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
-
   const defaultCenter = [39.8283, -98.5795];
 
   useEffect(() => {
     const fetchCoordinates = async () => {
       setIsLoading(true);
-
       const locations = [
         { address: currentLocation, label: "Current Location" },
         { address: pickupLocation, label: "Pickup Location" },
         { address: dropoffLocation, label: "Dropoff Location" },
-      ].filter((loc) => loc.address); // Filter out empty addresses
+      ].filter((loc) => loc.address);
 
       const coordinates = [];
 
@@ -92,7 +108,7 @@ const MapComponent = ({ currentLocation, pickupLocation, dropoffLocation }) => {
             boxShadow: "0 0 10px rgba(0,0,0,0.2)",
           }}
         >
-          Loading locations...
+          Loading locations and calculating route...
         </div>
       )}
       <MapContainer
@@ -113,7 +129,7 @@ const MapComponent = ({ currentLocation, pickupLocation, dropoffLocation }) => {
             </Popup>
           </Marker>
         ))}
-        <MapUpdater coordinates={markers.map((m) => [m.lat, m.lng])} />
+        {markers.length >= 2 && <RoutingMachine coordinates={markers} />}
       </MapContainer>
     </div>
   );
