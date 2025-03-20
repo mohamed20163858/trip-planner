@@ -1,6 +1,6 @@
 import React from "react";
 
-const ELDLogSheet = ({ date, logs }) => {
+const ELDLogSheet = ({ date, logs, summary }) => {
   const hours = Array.from({ length: 24 }, (_, i) => i);
   const gridHeight = 200;
   const gridWidth = 720; // 30px per hour
@@ -30,6 +30,43 @@ const ELDLogSheet = ({ date, logs }) => {
       color: statusColors[status],
     };
   };
+
+  const SummarySection = () => (
+    <div
+      style={{
+        marginTop: "20px",
+        padding: "15px",
+        backgroundColor: "#f5f5f5",
+        borderRadius: "5px",
+      }}
+    >
+      <h4>Trip Summary</h4>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(2, 1fr)",
+          gap: "10px",
+        }}
+      >
+        <div>
+          <strong>Total Driving Hours:</strong>
+          <span>{summary.totalDrivingHours.toFixed(1)} hrs</span>
+        </div>
+        <div>
+          <strong>Required Break Hours:</strong>
+          <span>{summary.requiredBreakHours.toFixed(1)} hrs</span>
+        </div>
+        <div>
+          <strong>Total Trip Duration:</strong>
+          <span>{summary.totalTripHours.toFixed(1)} hrs</span>
+        </div>
+        <div>
+          <strong>Remaining Cycle Hours:</strong>
+          <span>{summary.remainingCycleHours.toFixed(1)} hrs</span>
+        </div>
+      </div>
+    </div>
+  );
 
   return (
     <div
@@ -168,6 +205,7 @@ const ELDLogSheet = ({ date, logs }) => {
           ))}
         </div>
       </div>
+      {summary && <SummarySection />}
     </div>
   );
 };
